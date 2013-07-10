@@ -53,42 +53,31 @@ the callable will not be called.
 
 '''
 
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict
 import pyutilib.workflow
 from bein import execution
 import pickle
 
-Parameter = namedtuple('Parameter','name type default desc dumps loads')
-
-def Number(name, type=float, default=0.0, desc='A number'):
-    return Parameter(name,type,default,desc,dumps=str,loads=type)
-def String(name, type=str, default='', desc='A string'):
-    return Parameter(name,type,default,desc,dumps=lambda x:x, loads=lambda x:x)
-def FileName(name, type='input', default='', desc='A file name'):
-    return String(name, type, default, desc)
-             
 
 tasks = dict()
 
 class ProcessTask(pyutilib.workflow.Task):
-    def __init__(self, minilims, name, callable, input_params, output_params,
+    def __init__(self, minilims, name, callable, input_param_set, output_param_set,
                  *args, **kwds):
         super(ProcessTask, self).__init__(*args, name=name, **kwds)
         self.M = minilims
         self.callable = callable
 
-        self.op = OrderedDict()
-        self.ip = OrderedDict()
+        self.op = output_param_set
+        self.ip = input_param_set
 
-        for p in output_params:
-            self.op[p.name] = p
-            self.outputs.declare(p.name, default=p.default, doc=p.desc)
-        for p in input_params:
-            self.ip[p.name] = p
-            self.inputs.declare(p.name, default=p.default, doc=p.desc)
-            if p.type == 'output' and not p.name in self.op.keys():
-                self.op[p.name] = p
-                self.outputs.declare(p.name, default=p.default, doc=p.desc)
+        for name, p in self.op.items():
+            self.outputs.declare(name, default=p.value, doc=p.desc)
+        for name, p in self.ip.items():
+            self.inputs.declare(name, default=p.value, doc=p.desc)
+            if p.type == 'output' and not name in self.op.keys():
+                self.op[name] = p
+                self.outputs.declare(name, default=p.value, doc=p.desc)
 
         global tasks
         tasks[name] = self
@@ -241,65 +230,4 @@ class ProcessTask(pyutilib.workflow.Task):
         self.set_output(outfiles, **outvar)
             
         return
-
-def test():
-    from bein import MiniLIMS
-    
-    datafilepat = 'datafile_{x}.txt'
-    p1_in = [
-        Parameter(name='x', type=int, default=10, desc='a number'),
-        Parameter(name='datafile', type='output', default=datafilepat,
-                  desc='Data file holding x = {x}'),
-        ]
-    p1_out = [
-        Parameter(name='y', type=float, default=20, desc='f(x)'),
-        ]
-
-    p2_in = [
-        Parameter(name='y', type=float, default=30, desc='y=f(x)'),
-        Parameter(name='z', type=int, default=40, desc='a number'),
-        Parameter(name='indatafile', type='input', default=datafilepat,
-                  desc='Data file holding x = {x}'),
-        Parameter(name='outdatafile', type='output', default='out2data.txt',
-                  desc='Data file holding some stuff'),
-        ]
-    p2_out = [
-        Parameter(name='result', type=str, default='(unknown)', 
-                  desc='some string result'),
-        ]
-
-    def callable1(ex, **kwds):
-        print 'callable1', kwds
-        x = kwds['x']
-        datafile = kwds['datafile']
-        with open(datafile, 'w') as fp:
-            fp.write('# %s\n' % ', '.join(['%s:%s'%kv for kv in kwds.items()]))
-            fp.write('x = %d\n' % x)
-        return dict(y=float(x*x), datafile=datafile)
-
-    def callable2(ex, **kwds):
-        print 'callable2',kwds
-        contents = [', '.join(['%s:%s'%kv for kv in kwds.items()])]
-
-        outdatafile = kwds['outdatafile']
-        with open(kwds['indatafile']) as infp:
-            with open(outdatafile, 'w') as outfp:
-                text = infp.read()
-                outfp.write(text)
-                contents.append(text)
-        return dict(result='\n'.join(contents), outdatafile=outdatafile)
-
-    M = MiniLIMS('test_process')
-    pt1 = ProcessTask(M, 'ProcessTask#1',callable1, p1_in, p1_out)
-    pt2 = ProcessTask(M, 'ProcessTask#2',callable2, p2_in, p2_out)
-
-    wf = pyutilib.workflow.Workflow()
-    pt2.inputs.indatafile = pt1.outputs.datafile
-    pt2.inputs.y = pt1.outputs.y
-
-    wf.add(pt1)
-    print wf(x=999, z=1001)
-
-if '__main__' == __name__:
-    test()
 

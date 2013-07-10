@@ -41,6 +41,8 @@ $ git clone https://github.com/madhadron/bein-htminilims.git
 $ (cd bein-htminilims && python setup.py build install)
 $ git clone https://github.com/brettviren/btbtwf.git
 $ (cd btdtwf && python setup.py build install)
+# or to use in-source
+# export PYTHONPATH=`pwd`/btdtwf
 #+END_EXAMPLE
 
 Note: get =bein= from the =bbcf= group and not from =madhadron= but do get =bein-htminilims= from =madhadron= (if you want to view the MiniLIMS DB via a web browser).
