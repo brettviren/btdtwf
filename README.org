@@ -1,0 +1,48 @@
+Been There Done That Workflow
+
+* Features
+
+ - Reusable, parameterized functional procedures
+ 
+ - Result caching
+
+ - Higher level workflow definition
+
+* Design
+
+Procedures have input and output signatures defined by an ordered set
+of parameters.  A procedure takes a set of values matching the input
+signature and produces a set of values matching the output signature.
+Different procedures may be chained through their input and output
+values to set up a larger pipelined workflow.
+
+A file catalog is used to provide data provenance.  All output values
+that can be serialized are saved to a file and added to the catalog.
+Any files produced directly by the procedure may be also added.  If an
+output file is declared through a parameter this cataloging is
+automatic.
+
+Repetitive execution of a procedure will be avoided if the set of
+input values can be hashed and the output values can be serialized.
+The results from the prior run of the procedure must all be newer than
+the input results being requested.
+
+* Installation
+
+This package glues together [[https://software.sandia.gov/trac/pyutilib/browser/pyutilib.workflow][pyutilib.workflow]] and [[http://bbcf.epfl.ch/bein/bein.html][bein]].  To use it one needs to install a few Python packages.  One recipe is:
+
+#+BEGIN_EXAMPLE
+$ virtualenv venv
+$ source venv/bin/activate
+$ pip install pyutilib cherrypy unittest2 mako
+$ git clone https://github.com/bbcf/bein.git
+$ (cd bein && python setup.py build install)
+$ git clone https://github.com/madhadron/bein-htminilims.git
+$ (cd bein-htminilims && python setup.py build install)
+$ git clone https://github.com/brettviren/btbtwf.git
+$ (cd btdtwf && python setup.py build install)
+#+END_EXAMPLE
+
+Note: get =bein= from the =bbcf= group and not from =madhadron= but do get =bein-htminilims= from =madhadron= (if you want to view the MiniLIMS DB via a web browser).
+
+
