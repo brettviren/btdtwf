@@ -11,7 +11,7 @@ def test_ps():
     old_filename = 'old_filename.txt'
     new_filename = 'new_filename.txt'
 
-    ps1 = bp.ParameterSet(s=bp.String('string1'), f=bp.FileName('filename1',value=old_filename))
+    ps1 = bp.ParameterSet(s=bp.String('string1'), f=bp.FileName(value=old_filename))
     ps2 = bp.ParameterSet(**ps1)
     assert ps1 == ps2
     d1 = ps1.dumps()
@@ -40,6 +40,19 @@ def test_ps():
     assert ps1 == ps3
     assert ps1['f'].value == new_filename
 
+def test_serial():
+    ps1 = bp.ParameterSet(s1 = bp.String('a string','This is a string'),
+                          f1 = bp.FileName('fileone.txt','First file'),
+                          n1 = bp.Number(42,'The answer'))
+    ps2 = bp.ParameterSet(bad = bp.Parameter('broken','an unserializable parameter',None),
+                          **ps1)
+    assert ps1['f1'].value == 'fileone.txt'
+    assert not ps2.serializable() 
+    s = ps2.dumps()
+    assert s
+
+
 if '__main__' == __name__:
     test_make_some()
     test_ps()
+    test_serial()

@@ -1,19 +1,26 @@
 #!/usr/bin/env python
 '''
-A parameter is a named and typed quantity which caries serialization functions.
+A parameter is a value with a description and a serialization hint.
+
+A parameter set is an ordered dictionary of parameters keyed by their names.
 '''
 
 from collections import namedtuple, OrderedDict
 import pickle
 
-Parameter = namedtuple('Parameter','name type value desc dumps loads')
+allowed_hints = ['input', 'output', 'pod', 'pickle', None]
 
-def Number(name, type=float, value=0.0, desc='Number'):
-    return Parameter(name, type, value, desc, dumps=str, loads=type)
-def String(name, type=str, value='', desc='String'):
-    return Parameter(name, type, value, desc, dumps=lambda x:x, loads=lambda x:x)
-def FileName(name, type='input', value='', desc='A file name'):
-    return String(name, type, value, desc)
+Parameter = namedtuple('Parameter','value desc hint')
+
+
+def Number(value=0, desc = "Number"):
+    return Parameter(value, desc, 'pod')
+
+def String(value='', desc='String'):
+    return Parameter(value, desc, 'pod')
+
+def FileName(value='', desc='FileName', hint='input'):
+    return Parameter(value, desc, hint)
              
 
 class ParameterSet(OrderedDict):
@@ -26,22 +33,25 @@ class ParameterSet(OrderedDict):
 
     def dumps(self):
         '''
-        Return a pickle dump string representation of self.
+        Return a (pickle) string representation of value set. (best effort)
         '''
-        ret = OrderedDict()
-        for n, p in self.items():
-            ret[n] = p.loads(p.value)
-        return pickle.dumps(ret)
+        return pickle.dumps(self.get_values())
 
     def loads(self, string):
         '''
-        Load a dump string back into self.
+        Load a (pickle) dump string back into self. (best effort)
         '''
         od = pickle.loads(string)
-        for n, v in od.items():
-            p = self[n]
-            self.replace(n, value=p.loads(v))
-        return
+        self.set_values(**od)
+
+    def serializable(self):
+        '''
+        Return True if all parameters are serializable.
+        '''
+        for p in self.values():
+            if p.hint is None:
+                return False
+        return True
 
     def get_values(self):
         '''
