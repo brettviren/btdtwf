@@ -6,11 +6,34 @@ The =btdtwf= package is a mashup of  [[https://software.sandia.gov/trac/pyutilib
 
 It uses these packages to allow for constructing of process workflows which also record data and file provenance.  On top of this it adds a caching mechanism which may avoid rerunning a process which has already run on a particular set of input.  
 
-The workflows are constructed out of /processes/ which are the combination of a callable object, its set of input parameters and its set of expected, produced output parameters.   The user does not need to know about =bein= nor =pyutilib.workflow= when writing their callable objects in order to benefit from their features.  The user can construct a workflow which is a mix of =btdtwf= processes and other =pyutilib= tasks.
+The workflows are constructed out of /processes/ which are the combination of a callable object, its set of input parameters and its set of expected, produced output parameters (each a =btdtwf.parameter.ParameterSet=) .   The user does not need to know coding details about =bein= nor =pyutilib.workflow= when writing their callable objects in order to benefit from their features.  The user can construct a workflow which is a mix of =btdtwf= processes and other =pyutilib= tasks.
 
-A framework for constructing task suites is also provided.
+A framework for constructing task suites is also provided (vaporware right now).
 
 * Installation
+
+It is suggested that everything is installed into a virtualenv.
+
+#+BEGIN_EXAMPLE
+$ virtualenv venv
+$ source venv/bin/activate
+#+END_EXAMPLE
+
+Carry on...
+
+** Prerequisites
+
+#+BEGIN_EXAMPLE
+$ virtualenv venv
+$ source venv/bin/activate
+$ pip install pyutilib cherrypy unittest2 mako
+$ git clone https://github.com/bbcf/bein.git
+$ (cd bein && python setup.py build install)
+$ git clone https://github.com/madhadron/bein-htminilims.git
+$ (cd bein-htminilims && python setup.py build install)
+#+END_EXAMPLE
+
+Note: take care to get =bein= from the =bbcf= group and not from =madhadron= but do get =bein-htminilims= from =madhadron= (optional, needed if you want to view the MiniLIMS DB via a web browser).
 
 ** Download
 
@@ -33,7 +56,9 @@ $ python setup.py sdist
 $ pip install dist/btdtwf-X.Y.Z.tar.gz
 #+END_EXAMPLE
 
+
 * More information
 
-Details on the design and use of =btdtwf= are in  [[doc/btdtwf.org]].
+Details on the design and use of =btdtwf= are in  [[./doc/btdtwf.org]].
+
 

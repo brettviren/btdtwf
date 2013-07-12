@@ -50,16 +50,23 @@ def test():
         result = '|'.join(contents)
         return dict(result='"%s"'%result, out_outdatafile=outdatafile)
 
-    M = bein.MiniLIMS('test_process')
-    pt1 = process.ProcessTask(M, 'ProcessTaskN1',callable1, p1_in, p1_out)
-    pt2 = process.ProcessTask(M, 'ProcessTaskN2',callable2, p2_in, p2_out)
 
     wf = workflow.Workflow()
+
+    pt1 = process.register('TaskN1',callable1, p1_in, p1_out)
+    print 'pt1.id=',pt1.id
+    pt2 = process.register('TaskN2',callable2, p2_in, p2_out)
+    print 'pt2.id=',pt2.id
+
     pt2.inputs.indatafile = pt1.outputs.out_datafile
     pt2.inputs.y = pt1.outputs.y
 
-    wf.add(pt2)
-    res = wf(x=999, z=1001)
+    print 'wf.id=',wf.id
+    #wf.debug = True
+    wf.add(pt1)
+
+    res = wf(provenance_name='test_process', x=999, z=1001)
+
     print 'wf(x=999, z=1001):'
     print '              y =',res.y
     print '         result =',res.result

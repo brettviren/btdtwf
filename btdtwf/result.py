@@ -44,8 +44,12 @@ def result(M, procname, ivs):
     try:
         rname = M.path_to_file(fname)
     except ValueError:
+        print 'result: no previous result named "%s"' % fname
         return None
-    return pickle.loads(open(rname).read())[2]
+    resstr = open(rname).read()
+    full  = pickle.loads(resstr)
+    res = full[2]
+    return res
 
 
 def cached(M, procname, ips):
@@ -57,8 +61,10 @@ def cached(M, procname, ips):
     by the input valid set.
     '''
     ivs = ips.get_values()
-    ts = timestamp(M, procname, ivs)
-    if ts is None: return None
+    last_ts = timestamp(M, procname, ivs)
+    if last_ts is None: 
+        print 'result.cached: no time stamp for result from process "%s"' % procname
+        return None
 
     # Check any input files being older than result time stamp
     for name, p in ips.items():
@@ -67,8 +73,12 @@ def cached(M, procname, ips):
         try:
             stat = M.fetch_file(p.value)
         except ValueError:
+            print 'result.cached: no such result file for process "%s": %s' % (procname, p.value)
             return None
-        if stat['created'] > ts:
+        this_ts = stat['created']
+        if last_ts < this_ts:
+            print 'result.cached: process "%s" existing result older than input file %s @ %s' % \
+                (procname, p.value, this_ts)
             return None
     return result(M, procname, ivs)
 
@@ -90,9 +100,9 @@ def prepare(ex, procname, ips):
         if p.hint == 'input':
             ret.replace(name, value = ex.path_to_file(p.value))
             continue
-        if p.hint == 'output':
-            ret.replace(name, value = p.value)
-            continue
+#        if p.hint == 'output':
+#            ret.replace(name, value = p.value)
+#            continue
     return ret
     
 
@@ -117,7 +127,7 @@ def finish(ex, procname, ips, ops):
         if not p.hint in ['input','output']:
             continue
 
-        template='%s_{name}_{value}_{hint}'.format(name=name, **p.__dict__)
+        template='%s_{hint}_{name}_{value}'.format(name=name, **p.__dict__)
         print p,template
         #if p.hint in ['input']:
         #    print 'Associating input %s to %s' % (p.value, rname)
@@ -125,7 +135,7 @@ def finish(ex, procname, ips, ops):
         if p.hint in ['output']:
             print 'Adding output and associating %s to %s' % (p.value, rname)
             ex.lims.delete_alias(p.value)
-            ex.add(p.value, alias=p.value, description=p.desc, 
+            ex.add(p.value, alias=p.value, description=p.desc,
                    associate_to_filename=rname, template=template)
 
     return

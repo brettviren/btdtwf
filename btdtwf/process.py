@@ -2,24 +2,22 @@
 '''
 '''
 
-from collections import OrderedDict
 import pyutilib.workflow
-from bein import execution
+import bein
 
-import result, parameter
+import result
 
-
-tasks = dict()
 
 class ProcessTask(pyutilib.workflow.Task):
-    def __init__(self, minilims, name, callable, input_param_set, output_param_set,
+    def __init__(self, name, callable, input_param_set, output_param_set,
                  *args, **kwds):
         super(ProcessTask, self).__init__(*args, name=name, **kwds)
-        self.M = minilims
         self.callable = callable
 
         self.ops = output_param_set
         self.ips = input_param_set
+
+        self.inputs.declare('provenance_name', default='', doc='Name of provenance tracking database')
 
         self.to_shunt = list()
         # Declare task ports
@@ -34,9 +32,13 @@ class ProcessTask(pyutilib.workflow.Task):
                     self.outputs.declare(out_name, default=p.value, doc=p.desc)
                     self.to_shunt.append(name)
 
-        global tasks
-        tasks[name] = self
         return
+
+    def M(self):
+        if not self.provenance_name: 
+            return None
+        return bein.MiniLIMS(self.provenance_name)
+        
 
     def get_inputs(self):
         'Set input parameters based on current workflow inputs'
@@ -51,7 +53,6 @@ class ProcessTask(pyutilib.workflow.Task):
             
     def set_outputs(self, ovs):
         'Apply the output value set to the current workflow output values and output parameters'
-        self.ops.set_values(**ovs)
         # Set workflow ports
         for name, p in self.ops.items():
             setattr(self, name, p.value)
@@ -59,22 +60,35 @@ class ProcessTask(pyutilib.workflow.Task):
             out_name = 'out_' + name
             value = self.ips[name].value
             setattr(self, out_name, value)
+            ovs[out_name] = value
             #print 'SHUNT: "%s": "%s" -> "%s" = "%s"' % (self.name, name, out_name, value)
+        self.ops.set_values(**ovs)
         #print 'OUTPUTS "%s": %s' % (self.name, self.ops)
 
     def execute(self):
         print 'EXECUTE "%s"' % self.name
         self.get_inputs()
 
-        ovs = result.cached(self.M, self.name, self.ips)
-        if ovs:
+        ovs = result.cached(self.M(), self.name, self.ips)
+        if ovs is not None:
+            print 'CACHED result: "%s"' % str(ovs)
             self.set_outputs(ovs)
             return
 
-        with execution(self.M) as ex:
+        print 'RUNNING "%s"' % self.name
+        with bein.execution(self.M()) as ex:
             stored_ips = result.prepare(ex, self.name, self.ips)
             stored_ivs = stored_ips.get_values()
             ovs = self.callable(ex, **stored_ivs)
+            if ovs is None: ovs = dict()
             self.set_outputs(ovs)
             result.finish(ex, self.name, self.ips, self.ops)
         return
+
+tasks = dict()
+def register(name, callable, input_param_set, output_param_set, *args, **kwds):
+    global tasks
+    t = ProcessTask(name,callable,input_param_set,output_param_set,*args,**kwds)    
+    tasks[name] = t
+    return t
+
