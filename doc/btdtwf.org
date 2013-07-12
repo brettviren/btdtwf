@@ -1,0 +1,93 @@
+Been There Done That Workflow
+
+* Features
+
+ - Reusable, parameterized functional processes
+ 
+ - Result caching
+
+ - Higher level workflow definition
+
+* Design
+
+Processes have input  and output signatures defined by  an ordered set of parameters.   A process takes  a set  of values matching  the input signature and produces a set  of values matching the output signature. Different  processs may  be  chained through  their  input and  output values to set up a larger pipelined workflow.
+
+A file catalog is used to provide data provenance.  All output values that can be serialized are saved to a file and added to the catalog. Any files produced directly by the process may be also added.  If an output file is declared through a parameter this cataloging is automatic.
+
+Repetitive execution of a process will be avoided if the set of input values can be hashed and the output values can be serialized. The results from the prior run of the process must all be newer than the input results being requested.
+
+* Installation
+
+This package glues together [[https://software.sandia.gov/trac/pyutilib/browser/pyutilib.workflow][pyutilib.workflow]] and [[http://bbcf.epfl.ch/bein/bein.html][bein]].  To use it one needs to install a few Python packages.  One recipe is:
+
+#+BEGIN_EXAMPLE
+$ virtualenv venv
+$ source venv/bin/activate
+$ pip install pyutilib cherrypy unittest2 mako
+$ git clone https://github.com/bbcf/bein.git
+$ (cd bein && python setup.py build install)
+$ git clone https://github.com/madhadron/bein-htminilims.git
+$ (cd bein-htminilims && python setup.py build install)
+$ git clone https://github.com/brettviren/btbtwf.git
+$ (cd btdtwf && python setup.py build install)
+# or to use in-source
+# export PYTHONPATH=`pwd`/btdtwf
+#+END_EXAMPLE
+
+Note: get =bein= from the =bbcf= group and not from =madhadron= but do get =bein-htminilims= from =madhadron= (if you want to view the MiniLIMS DB via a web browser).
+
+
+* Parameters
+
+A /parameter/ is a =namedtuple= containing
+
+ Parameter = namedtuple('Parameter','name type value desc dumps loads')
+
+ - name :: label the parameter uniquely in the set
+ - value :: the value object
+ - desc :: a short description of the parameter
+ - hint :: one of "pod", "input", "output", "pickle" or =None=
+ 
+The =hint= entry indicates additional information about the parameter.  The hints are:
+
+ - pod :: the value is a Plain Old Data type and will be serialized using built-in Python mechanism
+ - input :: the value is a string and names a file used for input by the process
+ - output :: the value is a string and names a file that should be produced by the process
+ - pickle :: the value should be serialized using the =pickle= module
+ - =None= :: the value should not be serialized
+
+More on serializing in the section on [[Cache]].
+
+** Parameter Sets
+
+A /parameter set/ is an ordered dictionary of parameters keyed by their =name=.  Once created, a parameter is immutable but a parameter set allows for a parameter to be updated through replacement.  Parameter sets aggregate the collection of input and output parameters for a process.  
+
+A /value set/ can be extracted from a parameter set.  This is a simple ordered dictionary keyed the same as the parameter set but containing only its values.  A parameter set may also be set from a value set.  It is value sets that are given to and produced by the process.
+
+* Process
+
+The process is implemented as a callable object and its execution is governed by a special =pyutilib.workflow= Task object.  This task object marshals the input and output parameter sets, checks the cache and calls the process callable when needed. 
+
+* Files
+
+Any files which are declared through parameters (with hints "input" or "output") are stored in a catalog and their provenance is tracked.  This is handled by the =bein= "MiniLIMS".  The file name is also used as the "alias" in the catalog.  If a new file of the same name is to be added it will take over the alias.  Names of files which a process is expected to produced ("output files") should be given as input parameters of type "output" (yes, you read that correctly).  Any declared "output" files will be available as output workflow ports in case follow-on processes require them.  Due to a technical issue with =pyutillib.workflow= the output port must be uniquely named.  This is achieved by prepending the string =out_= to the input port name in forming the output port name.
+
+Input parameters declared as file names may have values containing Python "{}"-style formatting codes. They will have their =.format()= method called with the input value set.  In this way they may be parameterized by the rest of the input parameters.
+
+All produced files should be declared through input parameters with the "output" hint.  Any such parameters will be automatically copied to the output parameter set and the post-formatted value shunted.
+
+
+* Result files
+
+In addition to any /output files/ written directly by the process callable, the governing task will store the input and output parameter set, to the extent possible, to file.  Any parameters which do not support serialization will be omitted from the result files.  This is called the /result file/ distinct from output files produced directly by the callable.
+
+* Cache
+
+Processes are expected to be long running.  In order to avoid their repetitive rerunning a cache mechanism is used.  Caching of results will only be employed if all input parameters can be serialized to string and if all output parameters can be serialized to string and back to objects.
+
+The cache is parameterized by the input parameters and by the name of the process.  Rerunning the same process with novel parameters will lead to the callable executing and a novel result being stored.
+
+The caching mechanism checks the time stamp of the cached output result file against the time stamps of any input files declared in the input parameter set.  If any input files are newer then the cache is invalidated and the callable will be executed.
+
+If the cache is valid, callable is not executed and the result file is deserialized into the output parameter set. 
+
