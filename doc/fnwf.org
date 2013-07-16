@@ -1,0 +1,28 @@
+Functional Network Workflow
+
+Building a workflow with BTDTWF means building a directed acyclic graph (DAG).   Each node represents a part of the processing.  Input edges provide inputs to the processing and results are available via output edges.
+
+* Graph description
+
+The workflow graph is build satisfying a hierarchy of requirements and patterns.  
+
+** Nodes
+
+The basic requirements for any node object are:
+
+ - it is a callable object
+ - the call takes no arguments and returns a value
+ - calling is idempotent, for a given graph, the same value is always returned
+
+Any graph made of nodes that only follow these requirements would be very boring.   It would be fully disconnected since no requirement has been made on how to connect nodes via edges.  It also can not produce any results as no requirement on how the nodes are called has been made.
+
+Nodes can be called in a number of ways.  A top-down approach would involve iterating on all the nodes in the correct order, calling each in turn and propagating its value to any other nodes that require it as input.  This would evaluate the entire graph even if the caller was interested in the results from only a sub-graph.
+
+Instead, a bottom-up approach is taken.  Nodes that require values from other nodes must arrange to have them called some time before the value is needed.
+
+Both of these are addressed by the requirements on edge objects.
+
+** Edges
+
+An edge is basically a mechanism to keep track of the connection of its tail object to its head object.  Depending on what the node callable does it the organization of input edges may differ.
+
