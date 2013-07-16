@@ -21,7 +21,7 @@ class MyEdge(object):
         
 
 class MyNode(object):
-    def __init__(self, value = None):
+    def __init__(self, value):
         self._value = value
 
     def __call__(self):
@@ -32,6 +32,23 @@ class MyNode(object):
     def __repr__(self):
         return "%s %s" % (type(self._value), self._value)
 
+class MyProc(object):
+    def __init__(self, input_values, output_values):
+        self._iv = input_values
+        self._ov = output_values
+        
+    def __call__(self, obj):
+        ind = self._iv.index(obj)
+        return self._ov[ind]
+        
+class MyOutVal(object):
+    def __init__(self, mp, iv):
+        self._mp = mp
+        self._iv = iv
+    def __call__(self):
+        return self._mp(self._iv)
+        
+
 class MyDiGraph(nx.DiGraph):
 
     def add_edge(self, a,b, *args, **kwds):
@@ -41,6 +58,13 @@ class MyDiGraph(nx.DiGraph):
         super(MyDiGraph,self).add_edge(a,b, *args, object=e, **kwds)
         return
         
+def make_func_graph():
+    G = MyDiGraph()
+    
+    iv = range(3)
+    ov = [x*x for x in iv]
+    mp = MyProc(iv,ov
+
 def make_test_graph():
     G = MyDiGraph()
 
