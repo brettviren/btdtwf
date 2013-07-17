@@ -1,28 +1,144 @@
 Functional Network Workflow
 
-Building a workflow with BTDTWF means building a directed acyclic graph (DAG).   Each node represents a part of the processing.  Input edges provide inputs to the processing and results are available via output edges.
+Building a workflow with BTDTWF means building a directed acyclic graph (DAG).   Each node represents a part of the processing.  An edge connects output of one node to an input of another.  This is called a Functional Network Workflow (FNW) graph.
 
-* Graph description
+* Nodes
 
-The workflow graph is build satisfying a hierarchy of requirements and patterns.  
+There are two basic requirements for any node object:
 
-** Nodes
+ - It must be an idempotent callable object, taking no arguments and returning a value
+ - It may accepts input nodes
 
-The basic requirements for any node object are:
+** Idempotent Callable
 
- - it is a callable object
- - the call takes no arguments and returns a value
- - calling is idempotent, for a given graph, the same value is always returned
+The node object must be callable.  The call must takes no arguments.  A value must be returned and will be used by nodes that were given the node as input.  If the call is repeated the same value must be returned.
 
-Any graph made of nodes that only follow these requirements would be very boring.   It would be fully disconnected since no requirement has been made on how to connect nodes via edges.  It also can not produce any results as no requirement on how the nodes are called has been made.
+** Connections
 
-Nodes can be called in a number of ways.  A top-down approach would involve iterating on all the nodes in the correct order, calling each in turn and propagating its value to any other nodes that require it as input.  This would evaluate the entire graph even if the caller was interested in the results from only a sub-graph.
+A node need not accept any input.  An example would be a node that provides a static parameter which has been fixed at graph construction time.  All nodes which accept input must implement the =connect= method.  When the graph is evaluated it will be called with information about every "edge" connecting the node to an input node.  Any values associated with the edge are passed as keyword arguments.
 
-Instead, a bottom-up approach is taken.  Nodes that require values from other nodes must arrange to have them called some time before the value is needed.
+#+BEGIN_SRC python
+  def connect(self, node, **kwds):
+      # do something with node
+      return  
+#+END_SRC
 
-Both of these are addressed by the requirements on edge objects.
+* Graph construction and connection
 
-** Edges
+An FNW graph is constructed using [[http://networkx.github.io][NetworkX]]. 
 
-An edge is basically a mechanism to keep track of the connection of its tail object to its head object.  Depending on what the node callable does it the organization of input edges may differ.
+#+BEGIN_SRC python
+  import networkx as nx
+  graph = nx.DiGraph()
+  graph.add_edge(MyNode(), MyOtherNode(), edge_value=42)
+  # ...
+#+END_SRC
 
+After construction none of the nodes have yet had there =connect()= methods called on their input edges.  This is done simply with an iteration over all edges like:
+
+#+BEGIN_SRC python
+  for tail, head, data in graph.edges(data=true):
+      h.connect(tail, **data)
+#+END_SRC
+
+At this point, any node may be called.
+
+The connection could insinuate code which implements the node interface.  For example, to add print statements around all calls.
+
+#+BEGIN_SRC python
+  class Chirp:
+      def __init__(self, node):
+          self._node = node
+      def __call__(self):
+          print 'Calling:', self._node
+          val = self._node()
+          print 'Got:',val
+          return val
+      def connect(self, node, **kwds):
+          self._node.connect(node, **kwds)
+  #...
+  for t,h,d in G.edges(data=True):
+      h.connect(Chirp(t),**d)
+  
+#+END_SRC
+
+
+* Node patterns
+
+By itself, a NFW graph is nothing special.  It provides the basis of expressing workflow patterns. 
+
+** Parameter
+
+Node processes may be parameterized.  A parameter value may be hard coded or it may pull its value from some configuration database (keeping in mind the requirement of idempotency).  Some examples
+
+#+BEGIN_SRC python
+  def param(): 
+      return 42
+  param = lamda: 
+      return 42
+  def param(db, name):
+      return db[name]
+  class Param():
+      def __init__(self, val):
+          self._val = val
+      def __call__(self):
+          return self._val
+  param = Param(42)
+#+END_SRC
+
+In these examples, =param= can be used as a node.
+
+** Parameter set
+
+A realistic function will take many named parameters.
+
+#+BEGIN_SRC python
+  class FuncNode():
+      def __init__(self, required, foo=42, bar=6.9, **other):
+          self._params = dict(required=lambda:required, foo=lambda:foo, bar=lambda:bar)
+      def connect(self, node, name=None, **other):
+          if name is None:
+              raise KeyError, 'Need name'
+          self._params[name] = node
+      def __call__(self):
+          return _params['foo']() + self._params['bar']()
+#+END_SRC
+
+** Filter
+
+Some functions may return a dictionary or other collection while others may need only subset.  
+
+#+BEGIN_SRC python
+  class ScalarFromDict:
+      def __init__(self, name):
+          self._name = name
+          self._node = None
+      def connect(self, node, **data):
+          self._node = node
+      def __call__(self):
+          return self._node()[self._name]
+#+END_SRC
+
+** Fail-over
+
+There may be multiple sources for a result which can implement a fail-over or cache mechanism.
+
+#+BEGIN_SRC python
+  def fail(): return None
+  def succeed(): return 42
+  class KeepTrying:
+      def __init__(self):
+          self._input = list()
+      def connect(self, node, **kwds):
+          self._input.append(node)
+      def __call__(self):
+          for n in self._input:
+              v = n()
+              if v is not None:
+                  return v
+          return None          
+  kt = KeepTrying()
+  graph.add_edge(fail,kt)
+  graph.add_edge(succeed,kt)
+  
+#+END_SRC
