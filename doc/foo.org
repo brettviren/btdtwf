@@ -1,0 +1,22 @@
+* COMMENT setup
+#+begin_src emacs-lisp :results silent
+  (defmacro by-backend (&rest body)
+    `(case (if (boundp 'backend) backend nil) ,@body))
+#+end_src
+
+* A graph
+
+#+header: :file (by-backend (html "graph.png") (latex "graph.pdf") (t "graph.svg"))
+#+header: :export results
+#+begin_src dot
+digraph Name {
+        tail -> head;
+}
+#+end_src
+
+
+
+
+
+
+

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import networkx as nx
-
+from collections import OrderedDict
 
 class NamedNode(object):
     def __init__(self, name, *args, **kwds):
@@ -10,7 +10,6 @@ class NamedNode(object):
         self.input = None
 
     def connect(self, node, **kwds):
-        print self._name,'connect',node,kwds
         self.inputs.append((node,kwds))
 
     def __call__(self):
@@ -24,13 +23,13 @@ class NamedNode(object):
 
 class FuncNode():
     def __init__(self, **defaults):
-        self._params = {k:lambda:v for k,v in defaults.items()}
+        self._params = OrderedDict({k:lambda:v for k,v in sorted(defaults.items())})
     def connect(self, node, name=None, **other):
         if name is None:
             raise KeyError, 'Need name'
         self._params[name] = node
     def __call__(self):
-        return {k:v() for k,v in self._params.items()}
+        return OrderedDict({k:v() for k,v in self._params.items()})
 
 
 class ScalarFromDict:
@@ -53,6 +52,40 @@ class Chirp:
     def connect(self, node, **kwds):
         self._node.connect(node, **kwds)
 
+some_storage = dict()
+class CacheNode:
+    def __init__(self, storage):
+        'storage must implement dict'
+        self._storage = storage
+        self._nodes = dict()
+        self._res = None
+
+    def connect(self, node, name=None, **kwds):
+        if not name in ['inputs','proc']:
+            raise KeyError, name
+        self._nodes[name] = node
+
+    def __call__(self):
+        #if not self._res is None:
+        #    return self._res
+        inputs = self._nodes['inputs']()
+        print 'Cache check for %s' % str(inputs)
+
+        try:
+            self._res = self._storage[repr(inputs)]
+        except KeyError:
+            self._res = self._nodes['proc']()
+            print 'Cache storing process output %s --> %s' % (inputs, self._res)
+            self._storage[repr(inputs)] = self._res
+        return self._res
+
+class ProcNode:
+    def connect(self, node, **kwds):
+        self._inputs = node
+    def __call__(self):
+        print 'Slow process running'
+        return self._inputs()
+
 def make_some():
     G = nx.DiGraph()
     a,b,c = [NamedNode(x) for x in ('a','b','c')]
@@ -69,7 +102,15 @@ def make_some():
     sfd = ScalarFromDict('d')
     G.add_edge(fn,sfd)
 
+    pn = ProcNode()
+    G.add_edge(fn, pn)
+
+    cn = CacheNode(some_storage)
+    G.add_edge(fn, cn, name='inputs')
+    G.add_edge(pn, cn, name='proc')
+               
     for t,h,d in G.edges(data=True):
         h.connect(Chirp(t),**d)
-    return G
+
+    return G, cn
 

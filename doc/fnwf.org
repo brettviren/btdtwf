@@ -1,5 +1,7 @@
 Functional Network Workflow
 
+
+
 Building a workflow with BTDTWF means building a directed acyclic graph (DAG).   Each node represents a part of the processing.  An edge connects output of one node to an input of another.  This is called a Functional Network Workflow (FNW) graph.
 
 * Nodes
@@ -9,23 +11,55 @@ There are two basic requirements for any node object:
  - It must be an idempotent callable object, taking no arguments and returning a value
  - It may accepts input nodes
 
+#+BEGIN_SRC dot :file "basic-node.png" :exports results
+  digraph OneNode {
+          node1 -> dest;
+          a -> node2;
+          b -> node2;
+  }
+#+END_SRC
+
+#+RESULTS:
+[[file:basic-node.png]]
+
+The arrows indicate data flow which, as discussed below, is counter to the direction of references from one node to another.
+
+
 ** Idempotent Callable
 
 The node object must be callable.  The call must takes no arguments.  A value must be returned and will be used by nodes that were given the node as input.  If the call is repeated the same value must be returned.
 
+
 ** Connections
 
-A node need not accept any input.  An example would be a node that provides a static parameter which has been fixed at graph construction time.  All nodes which accept input must implement the =connect= method.  When the graph is evaluated it will be called with information about every "edge" connecting the node to an input node.  Any values associated with the edge are passed as keyword arguments.
+A node need not accept any input.  An example would be a node that provides a static parameter which has been fixed at graph construction time.  Nodes which do accept input must implement the =connect()= method.  When the graph is evaluated it will be called with information about every "edge" connecting the node to an input node.  Any values associated with the edge are passed as keyword arguments.
 
 #+BEGIN_SRC python
   def connect(self, node, **kwds):
       # do something with node
-      return  
+      return
 #+END_SRC
+
+It is up to the node to interpret the connection information.  However, =connect()= must not call the node.
+
+** Calling
+
+After the graph is constructed and connected (see below) it may be called.  Calling the graph involves calling one or more nodes.  When a node is called it must call any connected input nodes in order to access their values.  It should then calculate and return a result.
+
+** Caching
+
+A node should be written following these guidelines:
+
+ - it must handle being called multiple times and returning the same value each time
+
+ - it must call any inputs once but should avoid calling them more than once
+
+ - it should arrange to avoid repeating its calculation and cache and return the result from the first call
+
 
 * Graph construction and connection
 
-An FNW graph is constructed using [[http://networkx.github.io][NetworkX]]. 
+An FNW graph is made from a [[http://networkx.github.io][NetworkX]] =DiGraph= object following usual NetworkX usage.
 
 #+BEGIN_SRC python
   import networkx as nx
@@ -34,16 +68,18 @@ An FNW graph is constructed using [[http://networkx.github.io][NetworkX]].
   # ...
 #+END_SRC
 
-After construction none of the nodes have yet had there =connect()= methods called on their input edges.  This is done simply with an iteration over all edges like:
+Once all desired nodes and edges values have been added the graph is considered /constructed/.  After construction none of the nodes have yet had their =connect()= methods called on their input edges.  This is done simply with an iteration over all edges like:
 
 #+BEGIN_SRC python
   for tail, head, data in graph.edges(data=true):
       h.connect(tail, **data)
 #+END_SRC
 
-At this point, any node may be called.
+At this point the graph is considered /connected/.  Any of its nodes may now be called.
 
-The connection could insinuate code which implements the node interface.  For example, to add print statements around all calls.
+** Instrumenting connections
+
+The connection process is free to insinuate code between the nodes as long as it preserves the node interface.  For example, to add print statements around the node calls.
 
 #+BEGIN_SRC python
   class Chirp:
@@ -59,22 +95,22 @@ The connection could insinuate code which implements the node interface.  For ex
   #...
   for t,h,d in G.edges(data=True):
       h.connect(Chirp(t),**d)
-  
+
 #+END_SRC
 
 
 * Node patterns
 
-By itself, a NFW graph is nothing special.  It provides the basis of expressing workflow patterns. 
+By itself, a NFW graph is nothing special.  It provides the basis of expressing workflow patterns.
 
 ** Parameter
 
 Node processes may be parameterized.  A parameter value may be hard coded or it may pull its value from some configuration database (keeping in mind the requirement of idempotency).  Some examples
 
 #+BEGIN_SRC python
-  def param(): 
+  def param():
       return 42
-  param = lamda: 
+  param = lamda:
       return 42
   def param(db, name):
       return db[name]
@@ -106,7 +142,7 @@ A realistic function will take many named parameters.
 
 ** Filter
 
-Some functions may return a dictionary or other collection while others may need only subset.  
+Some functions may return a dictionary or other collection while others may need only subset.
 
 #+BEGIN_SRC python
   class ScalarFromDict:
@@ -136,9 +172,34 @@ There may be multiple sources for a result which can implement a fail-over or ca
               v = n()
               if v is not None:
                   return v
-          return None          
+          return None
   kt = KeepTrying()
   graph.add_edge(fail,kt)
   graph.add_edge(succeed,kt)
+
+#+END_SRC
+
+
+** Cached process
+
+If the result of a process can be persisted in a way that is indexed by its input then this store can be used to provide a cache with on-demand running of the process if the result does not yet exist.
+
+#+BEGIN_SRC dot :file cache-pattern.png :exports results
+  digraph OneNode {
+          params -> cache;
+          params -> proc;
+          proc -> cache;
+  }
   
 #+END_SRC
+
+#+RESULTS:
+[[file:cache-pattern.png]]
+
+
+
+An input =params= node is connected to both the =cache= and =proc= nodes.  The =proc= node produces output, potentially after an expensive calculation.  The =cache= node first calls =params= and uses the result as a key to check some storage.  If a prior result is found it returns that result and never calls =proc=.  If no prior storage is found, then =proc= is called and the result is sent to storage (keyed by the =params= value) and then made available as the output value for =cache=.  The storage mechanism is unspecified but it may be made fine-grained such that the cache can be invalidated if it is older than the new inputs from =params= (eg, some entries of =params= may be file names and the associated files may be newer than the cached result).  This mechanism is employed in the storage module provided by BTDTWF.
+
+-----
+
+
