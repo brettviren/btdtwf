@@ -1,14 +1,20 @@
-Been There Done That Workflow Storage
+#+title: Been There Done That Workflow Storage
+
+* COMMENT setup
+#+begin_src emacs-lisp :results silent
+  (defmacro by-backend (&rest body)
+    `(case (if (boundp 'backend) backend nil) ,@body))
+#+end_src
 
 * What's needed
 
 A data store which:
 
- - records the results of a process
- - indexes the result by the process inputs
- - both inputs and results may include data objects as well as files 
- - files must retain meta data, in particular time stamp
- - files must remain unique even with identical names
+ - records the result of a process
+ - indexes the result by the process input
+ - recognizes that both input and result may include data objects as well as files 
+ - record file meta data, in particular time stamp
+ - support multiple instances of a file with the same identifier (filename)
 
 * Candidate stores
 
@@ -34,3 +40,35 @@ Python's shelve is a dictionary-like object that relies on Pickle and a DBM data
 ** Sumatra
 
 Sumatra [[http://rrcns.readthedocs.org/en/latest/provenance_tracking.html][1]], [[http://pythonhosted.org/Sumatra/index.html][2]] takes an outside-in approach.  The user runs it and it runs the users analysis programs.  It runs from a VCS (git, svn) controlled directory and commits after runs.  It tries to do some magic to only rerun programs if input or Python modules change.  It provides a Django-based web interface to browse the database of results.  It has hooks that can be exploited in writing LaTeX documents which use plots or other files produced in the analysis.  It has built in support for a variety of parameter configuration file formats.
+
+* Yet another git
+
+It seems like there are only a handful of Hylaean tools in this universe.  Git is one of them.  So, let's see how we can pollute its ideal.
+
+ - each execution results in a commit
+ - use a new branch each time a job is rerun after a change
+ - how to persist and track input/output object data?  how to name?
+
+#+header: :file (by-backend (latex "branch-history.pdf") (t "branch-history.svg"))
+#+header: :export results
+#+BEGIN_SRC dot
+  digraph BranchHistory {
+          start [shape=box];
+          start -> run1;
+          state1 [shape=box];
+          run1 -> state1;
+          state1 -> run2;
+          state2 [shape=box];
+          run2 ->state2;
+          state1 -> run2a;
+          state2a [shape=box];
+          run2a->state2a;
+  }
+#+END_SRC
+
+#+RESULTS:
+[[file:branch-history.svg]]
+
+
+
+-----
