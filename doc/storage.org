@@ -1,0 +1,36 @@
+Been There Done That Workflow Storage
+
+* What's needed
+
+A data store which:
+
+ - records the results of a process
+ - indexes the result by the process inputs
+ - both inputs and results may include data objects as well as files 
+ - files must retain meta data, in particular time stamp
+ - files must remain unique even with identical names
+
+* Candidate stores
+
+** bein MiniLIMS
+
+The [[http://bbcf.epfl.ch/bein/bein.html][bein]] package provides two main components.  
+
+ - MiniLIMS :: a file based store implemented with a database (SQLite) for meta data and a directory for actual file storage
+ - execution context manager :: wraps execution of some code to make it atomic and allow setting meta data on it
+
+When a file is added to the MiniLIMS store it is copied into the file directory given a unique, random file name.  The meta data in the database associates the initial "external" name and zero or more aliases to the random file name.  The data store can be used alone.  If used with the execution context manager then file operations on the data store are associated with the execution.  
+
+There is a [[https://github.com/madhadron/bein-htminilims][web server]] providing a web interface to the MiniLIMS store which allows browsing and deleting executions and files.  If an execution fails the traceback is stored in the database and presented by the web server.
+
+When the execution context manager is used, a temporary sub-directory is created and made current.  Any files produced will be removed.  Any files added to MiniLIMS will first be copied to the store.  Reusing such files requires translating from the file name the user if familiar with to the randomly named file in the store.  MiniLIMS provides a method to perform this.
+
+Note: it's important to get bein v1.1 from BBCF and the bein-htminilims from madhadron.  
+
+** Python shelve
+
+Python's shelve is a dictionary-like object that relies on Pickle and a DBM database for persistence.  It is a data store and does not have functionality specifically for data already in files.  There are variants offering different backends such as [[http://newartisans.com/2008/05/using-git-as-a-versioned-data-store-in-python/][gitshelve]] and [[https://bitbucket.org/lcrees/shove/src][shove]].
+
+** Sumatra
+
+Sumatra [[http://rrcns.readthedocs.org/en/latest/provenance_tracking.html][1]], [[http://pythonhosted.org/Sumatra/index.html][2]] takes an outside-in approach.  The user runs it and it runs the users analysis programs.  It runs from a VCS (git, svn) controlled directory and commits after runs.  It tries to do some magic to only rerun programs if input or Python modules change.  It provides a Django-based web interface to browse the database of results.  It has hooks that can be exploited in writing LaTeX documents which use plots or other files produced in the analysis.  It has built in support for a variety of parameter configuration file formats.

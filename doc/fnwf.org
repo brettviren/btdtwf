@@ -1,5 +1,10 @@
 Functional Network Workflow
 
+* COMMENT setup
+#+begin_src emacs-lisp :results silent
+  (defmacro by-backend (&rest body)
+    `(case (if (boundp 'backend) backend nil) ,@body))
+#+end_src
 
 
 Building a workflow with BTDTWF means building a directed acyclic graph (DAG).   Each node represents a part of the processing.  An edge connects output of one node to an input of another.  This is called a Functional Network Workflow (FNW) graph.
@@ -11,7 +16,9 @@ There are two basic requirements for any node object:
  - It must be an idempotent callable object, taking no arguments and returning a value
  - It may accepts input nodes
 
-#+BEGIN_SRC dot :file "basic-node.png" :exports results
+#+header: :file (by-backend (latex "basic-node.pdf") (t "basic-node.svg"))
+#+header: :export results
+#+BEGIN_SRC dot
   digraph OneNode {
           node1 -> dest;
           a -> node2;
@@ -20,9 +27,9 @@ There are two basic requirements for any node object:
 #+END_SRC
 
 #+RESULTS:
-[[file:basic-node.png]]
+[[file:basic-node.svg]]
 
-The arrows indicate data flow which, as discussed below, is counter to the direction of references from one node to another.
+The arrows indicate data flow which, as discussed below, is counter to the direction of references from one node to another.  In the first graph, =node1= takes no input and is connected to the node =dest=.  In the second graph nodes =a= and =b= take no input and are both connected to =node2=.
 
 
 ** Idempotent Callable
@@ -184,21 +191,26 @@ There may be multiple sources for a result which can implement a fail-over or ca
 
 If the result of a process can be persisted in a way that is indexed by its input then this store can be used to provide a cache with on-demand running of the process if the result does not yet exist.
 
+#+header: :file (by-backend (latex "cache-pattern.pdf") (t "cache-pattern.svg"))
+#+header: :export results
 #+BEGIN_SRC dot :file cache-pattern.png :exports results
-  digraph OneNode {
-          params -> cache;
-          params -> proc;
-          proc -> cache;
-  }
-  
+    digraph OneNode {
+            params -> cache [label="inputs"];
+            params -> proc [label="inputs"];
+            proc -> cache [label=" results"];
+            storage [shape=box];
+            storage -> cache [style=dotted, dir=both];
+            cache -> caller [label=" results"];
+    }
+    
 #+END_SRC
 
 #+RESULTS:
-[[file:cache-pattern.png]]
+[[file:cache-pattern.svg]]
 
 
 
-An input =params= node is connected to both the =cache= and =proc= nodes.  The =proc= node produces output, potentially after an expensive calculation.  The =cache= node first calls =params= and uses the result as a key to check some storage.  If a prior result is found it returns that result and never calls =proc=.  If no prior storage is found, then =proc= is called and the result is sent to storage (keyed by the =params= value) and then made available as the output value for =cache=.  The storage mechanism is unspecified but it may be made fine-grained such that the cache can be invalidated if it is older than the new inputs from =params= (eg, some entries of =params= may be file names and the associated files may be newer than the cached result).  This mechanism is employed in the storage module provided by BTDTWF.
+An input =params= node is connected to both the =cache= and =proc= nodes.  The =proc= node produces output, potentially after an expensive calculation.  The =cache= node first calls =params= and uses the result as a key to check some storage.  If a prior result is found it returns that result and never calls =proc=.  If no prior storage is found, then =proc= is called and the result is sent to storage (keyed by the =params= value) and then made available as the output value for =cache=.  The storage mechanism is unspecified but it may be made fine-grained such that the cache can be invalidated if it is older than the new inputs from =params= (eg, some entries of =params= may be file names and the associated files may be newer than the cached result).  This mechanism is employed in the storage module provided by BTDTWF.  More information on this is in [[./storage.org]].
 
 -----
 
