@@ -193,7 +193,7 @@ If the result of a process can be persisted in a way that is indexed by its inpu
 
 #+header: :file (by-backend (latex "cache-pattern.pdf") (t "cache-pattern.svg"))
 #+header: :export results
-#+BEGIN_SRC dot :file cache-pattern.png :exports results
+#+BEGIN_SRC dot
     digraph OneNode {
             params -> cache [label="inputs"];
             params -> proc [label="inputs"];
@@ -212,6 +212,33 @@ If the result of a process can be persisted in a way that is indexed by its inpu
 
 An input =params= node is connected to both the =cache= and =proc= nodes.  The =proc= node produces output, potentially after an expensive calculation.  The =cache= node first calls =params= and uses the result as a key to check some storage.  If a prior result is found it returns that result and never calls =proc=.  If no prior storage is found, then =proc= is called and the result is sent to storage (keyed by the =params= value) and then made available as the output value for =cache=.  The storage mechanism is unspecified but it may be made fine-grained such that the cache can be invalidated if it is older than the new inputs from =params= (eg, some entries of =params= may be file names and the associated files may be newer than the cached result).  This mechanism is employed in the storage module provided by BTDTWF.  More information on this is in [[./storage.org]].
 
+
+
+** Cached with file I/O
+
+A process may read and write files in addition to consuming and producing object data.  
+
+#+header: :file (by-backend (latex "fileio-cache.pdf") (t "fileio-cache.svg"))
+#+header: :export results
+#+BEGIN_SRC dot
+  digraph FileIOCache {
+          proc [shape=box];
+          "if" [shape=octagon, label="input file name"]; 
+          "io" [label="input\nobjects"];
+          "of" [shape=octagon, label="output file pattern"]; 
+          "if" -> proc [labeljust="l",label="name:myinput,\nfiletype:input",headport=nw];
+          "io" -> proc;
+          "of" -> proc [label="name:myoutput,\nfiletype:output"];
+          proc -> "output objects";
+  }
+#+END_SRC
+
+#+RESULTS:
+[[file:fileio-cache.svg]]
+
+
+
+* end
 -----
 
 
