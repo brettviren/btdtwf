@@ -52,7 +52,10 @@ class Git(object):
         return os.path.exists(self.gitdir)
 
     def dirty(self):
-        self('status -s')
+        return self('status -s') != ('','')
+
+    def status(self):
+        return [x.split() for x in self('status -s')[0].split('\n') if x]
 
 class Got(object):
     '''
@@ -95,9 +98,12 @@ class Got(object):
                 self.git('checkout %s' % start)
             try:
                 yield self
-                self.git('commit -a -m "%s"' % description)
-                if tag:
-                    self.git('tag -f %s' % tag)
+                if self.git.dirty():
+                    self.git('commit -a -m "%s"' % description)
+                    if tag:
+                        self.git('tag -f %s' % tag)
+                else:
+                    print 'Got: no change detected.'
             except GitError:    # rewind
                 if start:
                     self.git('reset --hard %s' % start)
