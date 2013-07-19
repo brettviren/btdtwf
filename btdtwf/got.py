@@ -51,8 +51,22 @@ class Git(object):
     def initialized(self):
         return os.path.exists(self.gitdir)
 
+    def dirty(self):
+        self('status -s')
+
 class Got(object):
+    '''
+    Git Object Tracker
+
+    Got provides a context manager for executing code which produces
+    files and uses git as a backend to track the files in the
+    associated working directory.  
+    '''
+
     def __init__(self, workdir):
+        '''
+        Connect to the workdir.
+        '''
         if not os.path.exists(workdir):
             os.makedirs(workdir)
         self.git = Git(workdir)            
@@ -61,6 +75,14 @@ class Got(object):
             with self.execute(None, 'Staring Point', 'start'):
                 with open('.gitignore','w') as fp:
                     fp.write('*~\n')
+
+    def add(self, filename):
+        'Add the given file to the tracker.'
+        self.git('add %s' % filename)
+
+    def remove(self, filename):
+        'Remove the given file to the tracker.'
+        self.git('remove %s' % filename)
 
     def tags(self):
         return [x for x in self.git('tag')[0].split('\n') if x]
@@ -72,12 +94,11 @@ class Got(object):
             if start:
                 self.git('checkout %s' % start)
             try:
-                yield self.git
-                self.git('add *')
+                yield self
                 self.git('commit -a -m "%s"' % description)
                 if tag:
                     self.git('tag -f %s' % tag)
-            except GitError:
+            except GitError:    # rewind
                 if start:
                     self.git('reset --hard %s' % start)
                 raise
