@@ -128,7 +128,7 @@ def test_make_git():
         raise ValueError,'Did not get expected git error, did /tmp/got already exist?'
 
 
-def test_got(num):
+def test_got(num=1):
     g = Got('/tmp/got')
     print 'TAGS:',g.tags()
     with g.execute('start', 'First pass', 'testtag%d'%num):
