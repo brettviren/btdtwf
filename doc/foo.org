@@ -3,7 +3,7 @@
   (defmacro by-backend (&rest body)
     `(case (if (boundp 'backend) backend nil) ,@body))
 #+end_src
-
+  
 * A graph
 
 #+header: :file (by-backend (html "graph.png") (latex "graph.pdf") (t "graph.svg"))

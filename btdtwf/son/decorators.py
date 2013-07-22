@@ -1,9 +1,13 @@
 #!/usr/bin/env python
+'''
+A set of decorators which may be applied to a node's callable.
+'''
 
 import os
 import json
 from collections import OrderedDict
 from util import format_flat_dict
+
 
 def named_edges(f_taking_kwds):
     'dict(nodeX=dict(name="foo", a=1), ...) --> dict(foo=nodeX, a=1)'

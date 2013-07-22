@@ -109,6 +109,10 @@ class Got(object):
                     self.git('reset --hard %s' % start)
                 raise
 
+
+
+
+
 #------------------
         
 def test_cd():
