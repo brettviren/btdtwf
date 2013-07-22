@@ -3,22 +3,23 @@
 import os
 from subprocess import Popen, PIPE
 from contextlib import contextmanager
+import util
 
-@contextmanager
-def cd(path):
-    old = os.getcwd()
-    os.chdir(path)
-    yield old
-    os.chdir(old)
 
 class GitError(Exception):
-    def __init__(self, cmdstr, out, err):
-        self.cmdstr,self.out,self.err = cmdstr,out,err
+    def __init__(self, cwd, cmdstr, out, err):
+        self.cwd,self.cmdstr,self.out,self.err = cwd,cmdstr,out,err
         super(GitError, self).__init__()
     def __str__(self):
-        if not self.err:
-            return 'Git error: "%s" output:\n%s\n' % (self.cmdstr, self.out)
-        return 'Git error: "%s" output:\n%s\nerror:\n%s' % (self.cmdstr, self.out, self.err)
+        msg = ['error from command: <%s>' % self.cmdstr]
+        if self.out:
+            msg.append('Output: \n%s' % self.out)
+        if self.err:
+            msg.append('Error: \n%s' % self.err)
+        msg.append('In: %s' % self.cwd)
+        msg.append('Return the repository to a clean state manually.')
+        return '\n'.join(msg)
+
 
 
 class Git(object):
@@ -41,11 +42,12 @@ class Git(object):
             cmd = cmd.split()
         cmdlist = [self.exe] + cmd
         cmdstr = ' '.join(cmdlist)
-        with cd(indir):
+        with util.cd(indir):
             #print 'Running: %s in %s' % (str(cmdlist), os.getcwd())
             proc = Popen(cmdstr, shell=True, stdout=PIPE, stderr=PIPE)
             if proc.wait() != 0:
-                raise GitError(cmdstr, proc.stdout.read(), proc.stderr.read())
+                ge = GitError(self.workdir, cmdstr, proc.stdout.read(), proc.stderr.read())
+                raise ge 
             return (proc.stdout.read(), proc.stderr.read())
             
     def initialized(self):
@@ -56,6 +58,7 @@ class Git(object):
 
     def status(self):
         return [x.split() for x in self('status -s')[0].split('\n') if x]
+
 
 class Got(object):
     '''
@@ -75,9 +78,10 @@ class Got(object):
         self.git = Git(workdir)            
         if not self.git.initialized():
             self.git('init')
-            with self.execute(None, 'Staring Point', 'start'):
+            with self.execute(None, 'Staring Point', 'start') as g:
                 with open('.gitignore','w') as fp:
                     fp.write('*~\n')
+                g.add('.gitignore')
 
     def add(self, filename):
         'Add the given file to the tracker.'
@@ -93,60 +97,20 @@ class Got(object):
 
     @contextmanager
     def execute(self, start, description, tag = None):
-        with cd(self.git.workdir):
+        with util.cd(self.git.workdir):
             if start:
                 self.git('checkout %s' % start)
-            try:
-                yield self
-                if self.git.dirty():
-                    self.git('commit -a -m "%s"' % description)
-                    if tag:
-                        self.git('tag -f %s' % tag)
-                else:
-                    print 'Got: no change detected.'
-            except GitError:    # rewind
-                if start:
-                    self.git('reset --hard %s' % start)
-                raise
+
+            yield self
+
+            if self.git.dirty():
+                self.git('commit -a -m "%s"' % description)
+                if tag:
+                    self.git('tag -f %s' % tag)
+            else:
+                print 'Got: no change detected.'
 
 
 
 
 
-#------------------
-        
-def test_cd():
-    print os.getcwd()
-    with cd('/tmp') as oldir:
-        print oldir
-        print os.getcwd()
-    print os.getcwd()
-
-def test_make_git():
-    git = Git('/tmp/got')
-    try:
-        print git('status')
-    except GitError:
-        print 'Got expected git error'
-    else:
-        raise ValueError,'Did not get expected git error, did /tmp/got already exist?'
-
-
-def test_got(num=1):
-    g = Got('/tmp/got')
-    print 'TAGS:',g.tags()
-    with g.execute('start', 'First pass', 'testtag%d'%num):
-        with open('somefile.txt','w') as fp:
-            fp.write('got testing?\n')
-
-    with g.execute('testtag%d'%num, 'Mutate, Exterminate, Eliminate', 'follow-on%d'%num):
-        with open('somefile.txt') as inp:
-            with open('copyfile.txt','w') as out:
-                out.write(inp.read())
-        
-
-if __name__ == '__main__':
-    test_cd()
-    test_make_git()
-    test_got(1)
-    test_got(2)

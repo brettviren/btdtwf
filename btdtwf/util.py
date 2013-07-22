@@ -1,5 +1,15 @@
 #!/usr/bin/env python
 
+import os
+from contextlib import contextmanager
+
+@contextmanager
+def cd(path):
+    old = os.getcwd()
+    os.chdir(path)
+    yield old
+    os.chdir(old)
+
 def format_flat_dict(dat, formatter = str.format, **kwds):
     '''Return a formatted version of <dat> its own items with string
     values and any extra given by <kwds> by calling <formatter>.

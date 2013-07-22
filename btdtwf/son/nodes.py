@@ -3,6 +3,7 @@
 Some particular nodes and node patterns that work together
 '''
 
+import os
 from collections import OrderedDict
 from exception import CallError
 from btdtwf.util import format_flat_dict
@@ -11,7 +12,9 @@ import json
 
 class BaseNode(object):
     '''
-    Basic node to collect connections and unimplemented __call__.
+    Basic node to collect connections and provide in-memory cache.
+
+    Sub-classes should implement ``run()``
     '''
     def __init__(self, **node_kwds):
         self._node_kwds = node_kwds
@@ -28,12 +31,18 @@ class BaseNode(object):
 
         self._connections[node] = kwds
 
-    def __call__(self):
+    def run(self):
         raise CallError('unimplemented', self)
+
+    def __call__(self):
+        if hasattr(self, '_cache'):
+            return self._cache
+        self._cache = self.run()
+        return self._cache
 
 
 class CallableNode(BaseNode):
-    '''Node to call a callable.'''
+    '''An adapter node to call a callable.'''
 
     def __init__(self, callable, **node_kwds):
         '''A node given a callable
@@ -52,13 +61,10 @@ class CallableNode(BaseNode):
         '''
         self._callable = callable
         super(CallableNode,self).__init__(**node_kwds)
-        self._result = None
 
-    def __call__(self):
+    def run(self):
         '''Call the callable'''
-        if self._result is None:
-            self._result = self._callable(self._connections, **self._node_kwds)
-        return self._result
+        return self._callable(self._connections, **self._node_kwds)
 
 def connection_keywords(connections, **kwds):
     '''Return a unified dictionary of connection information.
@@ -157,22 +163,14 @@ class ProgramCallable:
         self._log.write(proc.stdout.read())
         return ret
 
-    def cached(self, inputs):
-        return self.returned
-
-    def cache(self, inputs, results):
-        self.returned = results
-
-    def __call__(self, connections, **kwds):
+    def munge_inputs(self, connections, **kwds):
         inputs = dict(self._kwds, **connection_keywords(connections,**kwds))
         inputs = format_flat_dict(inputs)
+        return inputs
 
-        ret = self.cached(inputs)
-        if ret != None:
-            return ret
-        ret = self.execute(inputs)
-        self.cache(inputs, ret)
-        return ret
+    def run(self, connections, **kwds):
+        inputs = self.munge_inputs(connections, **kwds)
+        return self.execute(inputs)
 
 def wrap_connection_keywords(**extra):
     '''Decorate a callable converting the node kwds plus the extra ones
@@ -251,3 +249,63 @@ def callable_program(cmdline, log='/dev/stdout', store=DummyStore(), **kwds):
     return the_callable
 
 
+
+
+class GotNode(BaseNode):
+    '''A node that calls its inputs in the context of a Got execution
+    and interprets their results as names of files to be added to the
+    Got store.  The returned values may either be a single filename of
+    a sequence.'''
+    def __init__(self, got, start, description, tag=None, **node_kwds):
+        '''Create a GotNode
+
+        Args:
+            got (Got object): an instance of a Got
+
+            start (string): a git tree-ish that should be used as the initial Got state
+
+            description (string): a string to use to commit the result
+
+            tag (string): an optional tag to place on the resulting commit
+
+        Returns: list of files added.
+
+        Note: this node will change to the Got directory before
+        calling the input nodes.  It has not control over if the nodes
+        have already been called or not.
+        '''
+        super(GotNode,self).__init__(**node_kwds)
+        self._got = got
+        self._start = start
+        self._desc = description
+        self._tag = tag
+
+    def wash_files(self, *fnames):
+        ret = []
+        for fname in fnames:
+            if not fname:
+                continue
+            if fname[0] != '/':
+                ret.append(fname)
+                continue
+            link = os.path.basename(fname) + '.url'
+            with open(link,'w') as fp:
+                fp.write(fname + '\n')
+            ret.append(link)
+        return ret
+            
+
+    def run(self):
+        ret = []
+        with self._got.execute(self._start, self._desc, self._tag) as got:
+            for node,kwds in self._connections.items():
+                r = node()
+                if isinstance(r, basestring):
+                    r = [r]
+
+                r = self.wash_files(*r)
+                got.add(' '.join(r))
+                ret += r
+
+        return ret
+                
