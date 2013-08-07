@@ -1,0 +1,45 @@
+#+title: Look at =dulwhich= for git access 
+
+* Documentation
+
+ - tutorial :: http://www.samba.org/~jelmer/dulwich/docs/index.html
+ - blog of notes :: http://jazstudios.blogspot.com/2012/03/dulwich-commands.html
+
+* Tagging
+
+The tutorial doesn't discuss tagging.  The blog of notes does as does
+this [[https://bugs.launchpad.net/dulwich/+bug/1115283][bug]] report.
+
+For basic tagging one relies on using dulwhich's interface to Git conventions.
+
+#+BEGIN_SRC python :export both :results output
+  from time import time
+  from dulwich.repo import MemoryRepo
+  from dulwich.objects import Blob, Tree, Commit, parse_timezone
+  mr = MemoryRepo()
+  blob = Blob.from_string("test content")
+  tree = Tree()
+  tree.add("test.txt", 0100644, blob.id)
+  c = Commit()
+  c.tree = tree.id
+  c.author = c.committer = 'me'
+  c.message = 'First commit'
+  c.commit_time = c.author_time = int(time())
+  tz = parse_timezone('-0500')[0]
+  c.commit_timezone = c.author_timezone = tz
+  
+  mr.object_store.add_object(blob)
+  mr.object_store.add_object(tree)
+  mr.object_store.add_object(c)
+  mr.refs['refs/tags/v1'] = c.id
+  print 'tag', mr.refs.as_dict('refs/tags')
+  for count,thing in enumerate(mr[c.tree].items()):
+      b = mr.get_blob(thing.sha)
+      print count,thing,b
+  
+#+END_SRC
+
+#+RESULTS:
+: tag {'v1': 'cbcdccf0fb32a3d5dc95e39832e6a45d72af4fef'}
+: 0 TreeEntry(path='test.txt', mode=33188, sha='08cf6101416f0ce0dda3c80e627f333854c4085c') test content
+
