@@ -2,7 +2,7 @@
 
 import networkx as nx
 Graph = nx.DiGraph
-import got, son
+import got, son, util
 
 
 def connect(graph):

@@ -261,6 +261,21 @@ def file_copy(src, dst=None, **kwds):
         return dst
     return do_the_copy
 
+def wash_files(*fnames):
+    ret = []
+    for fname in fnames:
+        if not fname:
+            continue
+        if fname[0] != '/':
+            ret.append(fname)
+            continue
+        link = os.path.basename(fname) + '.url'
+        with open(link,'w') as fp:
+            fp.write(fname + '\n')
+        ret.append(link)
+    return ret
+            
+
 class GotNode(BaseNode):
     '''A node that calls its inputs in the context of a Got execution
     and interprets their results as names of files to be added to the
@@ -290,20 +305,6 @@ class GotNode(BaseNode):
         self._desc = description
         self._tag = tag
 
-    def wash_files(self, *fnames):
-        ret = []
-        for fname in fnames:
-            if not fname:
-                continue
-            if fname[0] != '/':
-                ret.append(fname)
-                continue
-            link = os.path.basename(fname) + '.url'
-            with open(link,'w') as fp:
-                fp.write(fname + '\n')
-            ret.append(link)
-        return ret
-            
 
     def run(self):
         ret = []
@@ -313,9 +314,38 @@ class GotNode(BaseNode):
                 if isinstance(r, basestring):
                     r = [r]
 
-                r = self.wash_files(*r)
+                r = wash_files(*r)
                 got.add(' '.join(r))
                 ret += r
 
         return ret
                 
+def got_callable(got, start, desc, tag=None):
+    '''Wrap a callable so that its outputs are added to got.
+
+    The wrapped callable should return a filename or a sequence of
+    filenames that it produces.
+
+    '''
+
+    def wrapper(f_for_got):
+        def wrap(connections, **kwds):
+
+            # make sure nodes all fire outside influence of got in
+            # case they too use got or otherwise would not like their
+            # cwd changed.
+            for node in connections:
+                node()
+
+            with got.execute(start, desc, tag) as g:
+                r = f_for_got(connections, **kwds)
+                if isinstance(r, basestring):
+                    r = [r]
+                r = wash_files(*r)
+                g.add(' '.join(r))
+                return r
+
+        return wrap
+    return wrapper
+
+            
