@@ -49,30 +49,33 @@ def parse(filename, **params):
     params['workflow'] = workflow
 
     nodes = dict()
-    node_list = params.get('nodes')
-
-    for node_name in comma_list_split(node_list):
+    node_list = comma_list_split(params.get('input_nodes'))
+    for node_name in node_list:
         add_node_dict(nodes, cfg, node_name)
     params['nodes'] = nodes
+    params['input_nodes'] = node_list
+
     return params
 
-def node_dict2node(nd):
+def node_dict2obj(nd):
     callable_name = nd['callable']
     mn, nc = callable_name.rsplit('.',1)
     importstr = 'from %s import %s' % (mn,nc)
     print importstr
     exec (importstr)
     node_ctor = eval(nc)
-    return node_ctor(**nd)
+    obj = node_ctor(**nd)
+    nd['object'] = obj
+    return obj
 
-def make_graph(workflow=None, nodes=None, **kwds):
-    node_dicts = nodes or dict()
+def make_graph(**kwds):
+    node_dicts = kwds.get('nodes', dict())
     graph = btdtwf.nx.Graph()
 
     # initial node addition
     node_objs = dict()
     for node_name, node_dict in node_dicts.items():
-        node = node_dict2node(node_dict)
+        node = node_dict2obj(node_dict)
         node_objs[node_name] = node
         graph.add_node(node)
         

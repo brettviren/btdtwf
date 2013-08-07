@@ -56,10 +56,11 @@ Required workflow items:
 Optional items
 
  - =directory= :: a working directory to change to before executing the workflow
- - =provenance= :: the provenance mechanism, if any
 
 More than one =workflow= section is allowed but only one will be used.  The first workflow in the file will be used by default, if not otherwise overridden.
 
-* A =defaults= section
+
+
+* Defaults section
 
 A special section =defaults= can name which =workflow= to use if there are more than one.

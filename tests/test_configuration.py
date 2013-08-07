@@ -10,7 +10,7 @@ def test_parse():
     wf = configuration.parse(test_cfg_file)
     assert 3 == len(wf['nodes']), str(wf['nodes'].keys())
     wf = configuration.parse(test_cfg_file, workflow='wf2')
-    assert ('nodeA','nodeB','nodeD') == tuple(wf['nodes'].keys()), str(wf['nodes'].keys())
+    assert set(['nodeD']) == set(wf['input_nodes']), str(wf['input_nodes'])
 
 def test_fail():
     try:
@@ -21,11 +21,22 @@ def test_fail():
         raise 'ValueError: should have raised NoSectionError'
 
 def test_graph():
-    wf = configuration.parse(test_cfg_file)
+    wf = configuration.parse(test_cfg_file, workflow='wf2')
     g = configuration.make_graph(**wf)
     for n1,n2,d in g.edges(data=True):
         print n1,n2,d
     connect(g)
+
+    for n1,n2,d in g.edges(data=True):
+        print n1,n2,d
+
+    for name,node in wf['nodes'].items():
+        print name,node
+
+    for node_name in wf['input_nodes']:
+        node = wf['nodes'][node_name]
+        node['object']()
+
 
 if '__main__' == __name__:
     test_parse()

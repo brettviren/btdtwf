@@ -16,7 +16,8 @@ class BaseNode(object):
 
     Sub-classes should implement ``run()``
     '''
-    def __init__(self, **node_kwds):
+    def __init__(self, call_input=True, **node_kwds):
+        self._call_input = call_input
         self._node_kwds = node_kwds
         self._connections = OrderedDict()
 
@@ -37,6 +38,9 @@ class BaseNode(object):
     def __call__(self):
         if hasattr(self, '_cache'):
             return self._cache
+        if self._call_input:
+            for node in self._connections.keys():
+                node()
         self._cache = self.run()
         return self._cache
 
