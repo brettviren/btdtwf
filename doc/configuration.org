@@ -1,0 +1,65 @@
+#+title: BTDTWF Configuration
+
+* Overview
+
+The BTDTWF support a configuration mechanism whereby the workflow graph may be specified by a simple "INI" type configuration file.   The sections in the file are titled by their type and name as:
+
+#+BEGIN_EXAMPLE
+[TYPE NAME]
+# ...
+#+END_EXAMPLE
+
+* Node sections
+
+Each potential node in the graph is described in a section of type =node=.  A node section may have a number of items some of which are required and some are optional.  Any additional items are passed to the node object constructor as keyword arguments.
+
+** Required node items
+
+Each node section must contain:
+
+ - =callable= :: a Python class or function to call to produce the node object written as a full "path" (ie, =btdtwf.tests.nodes.TestNode=)
+
+** Optional node items
+
+Each node section may contain:
+
+ - =input_nodes= :: a comma-separated list of names of nodes which will be connected as input edges
+
+** Node Section Example
+
+Example of some node sections
+
+#+BEGIN_EXAMPLE
+[node NodeA]
+callable = btdtwf.test.nodes.TestNode
+var1 = 42
+
+[node NodeB]
+callable = btdtwf.test.nodes.TestNode
+input = NodeA
+var2 = "hello"
+
+[node NodeC]
+callable = btdtwf.test.nodes.TestNode
+input = NodeA, NodeB
+var3 = "world"
+#+END_EXAMPLE
+
+* Workflow sections
+
+A configuration file must have at least one section of type =workflow=.  This section must list at least some nodes to be included in the workflow.  Any nodes named as =input_nodes= in a listed node's section will be implicitly included.  The workflow section may also specify global options used in running the workflow.
+
+Required workflow items:
+
+ - =nodes= :: a comma-separated list of nodes to include in the workflow
+ 
+Optional items
+
+ - =directory= :: a working directory to change to before executing the workflow
+ - =provenance= :: the provenance mechanism, if any
+
+More than one =workflow= section is allowed but only one will be used.  The first workflow in the file will be used by default, if not otherwise overridden.
+
+* A =defaults= section
+
+A special section =defaults= can name which =workflow= to use if there are more than one.
