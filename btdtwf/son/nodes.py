@@ -249,7 +249,17 @@ def callable_program(cmdline, log='/dev/stdout', store=DummyStore(), **kwds):
     return the_callable
 
 
+def file_copy(src, dst=None, **kwds):
+    if dst is None:
+        dst = os.path.basename(src)
 
+    @ wrap_format_keywords()
+    def do_the_copy(connections, **params):
+        with open(dst, 'w') as outfp:
+            with open(src) as infp:
+                outfp.write(infp.read())
+        return dst
+    return do_the_copy
 
 class GotNode(BaseNode):
     '''A node that calls its inputs in the context of a Got execution
