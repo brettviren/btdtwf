@@ -17,7 +17,7 @@ Each potential node in the graph is described in a section of type =node=.  A no
 
 Each node section must contain:
 
- - =callable= :: a Python class or function to call to produce the node object written as a full "path" (ie, =btdtwf.tests.nodes.TestNode=)
+ - =constructor= :: a Python class or function to call to produce the node object written as a full "path" (ie, =btdtwf.tests.nodes.TestNode=)
 
 ** Optional node items
 
@@ -31,17 +31,17 @@ Example of some node sections
 
 #+BEGIN_EXAMPLE
 [node NodeA]
-callable = btdtwf.test.nodes.TestNode
+constructor = btdtwf.test.nodes.TestNode
 var1 = 42
 
 [node NodeB]
-callable = btdtwf.test.nodes.TestNode
-input = NodeA
+constructor = btdtwf.test.nodes.TestNode
+input_nodes = NodeA
 var2 = "hello"
 
 [node NodeC]
-callable = btdtwf.test.nodes.TestNode
-input = NodeA, NodeB
+constructor = btdtwf.test.nodes.TestNode
+input_nodes = NodeA, NodeB
 var3 = "world"
 #+END_EXAMPLE
 
@@ -56,11 +56,48 @@ Required workflow items:
 Optional items
 
  - =directory= :: a working directory to change to before executing the workflow
+ - =parameters= :: a comma-separated list of parameter sections
 
 More than one =workflow= section is allowed but only one will be used.  The first workflow in the file will be used by default, if not otherwise overridden.
-
-
 
 * Defaults section
 
 A special section =defaults= can name which =workflow= to use if there are more than one.
+
+* Parameters section
+
+A workflow section can specify zero or more parameters sections in a comma-separated list.  Each parameters section may specify others in a similar manner.  See the section on [[Parameter dictionary]] for more.
+
+* Configuration representation
+
+The configuration file or files are parsed using Python ConfigParser.  This interpretation results in a =WorkflowConfig= object.  
+
+** Workflow configuration objects
+
+The WorkflowConfig object (a =namedtuple=) extracts and holds all information about the workflow.  It has at least these data members:
+
+ - =name= :: name of the workflow section
+ - =nodes= :: a dictionary of =NodeConfig= objects (see [[Node configuration objects]])
+ - =params= :: an object holding all configuration parameters (see [[Parameters object]])
+ - =workdir= :: the requested working directory
+
+** Node configuration objects
+
+The =nodes= data member of the workflow configuration object holds a dictionary of =NodeConfg= objects (=namedtuples=).  These objects capture all there is about the node and have at least these data members:
+
+ - =name= :: the name of the node section
+ - =object= :: the callable object to be added to the BTDTWF graph
+ - =ctor= :: the name of the Python callable that constructed the =object=
+ - =kwdargs= :: a dictionary of all other items from the node section and which has been passed to the =ctor=
+
+** Parameters object
+
+The parameters object is built by descending through all =parameters= sections starting with those listed in the workflow section's =parameters=.  All other items are collected into a flat dictionary.  Any duplicate keys which are deeper in the descent replace an existing item.  
+
+All string values in the final parameter dictionary are formatted using all the other items in the dictionary until all formatting is satisfied.  Infinite reference loops should be avoided.
+
+The final parameter dictionary is used to format all other string values in the workflow and node configuration objects. 
+
+The resulting parameters dictionary is in the form of a =namedtuple=.
+
+
