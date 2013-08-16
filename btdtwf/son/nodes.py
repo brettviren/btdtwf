@@ -114,13 +114,13 @@ def connection_keywords(connections, **kwds):
 class ProgramCallable:
     '''Callable to exec a command line in a sub-shell.
     '''
-    def __init__(self, cmdline, log="/dev/stdout", **kwds):
+    def __init__(self, cmdline, logfile="/dev/stdout", **kwds):
         '''Create a program callable
         
         Args:
             cmdline (string): a shell command line, with str.format() codes
 
-            log (None, str or file object): string implies a filename
+            logfile (None, str or file object): string implies a filename
             to which any stdout is appended, None implies output is
             discarded.  Anything else will be assumed to be a
             file-like object.
@@ -151,8 +151,8 @@ class ProgramCallable:
 
         '''
         self._cmdline = cmdline
-        if isinstance(log, basestring):
-            log = open(log,'a')
+        if isinstance(logfile, basestring):
+            log = open(logfile,'a')
         self._log = log
         self._kwds = kwds
         self.called = None

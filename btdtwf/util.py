@@ -4,8 +4,11 @@ import os
 from contextlib import contextmanager
 
 @contextmanager
-def cd(path):
+def cd(path, mkdir=False):
     old = os.getcwd()
+    if mkdir:
+        if not os.path.exists(path):
+            os.makedirs(path)
     os.chdir(path)
     yield old
     os.chdir(old)

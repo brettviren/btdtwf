@@ -2,16 +2,54 @@
 
 * Overview
 
-The BTDTWF support a configuration mechanism whereby the workflow graph may be specified by a simple "INI" type configuration file.   The sections in the file are titled by their type and name as:
+The BTDTWF supports a configuration mechanism whereby the workflow graph may be specified with a simple "INI" type configuration file.   The file is organized into a number of /sections/ each containing a number of /items/  consisting of a /key/ and /value/ pair.
+Section types, names, keys and values are all case sensitive. Comments begin with the =#= character.
+This document assumes a single configuration file but multiple files may be specified in conjunction.
+
+** Configuration sections
+
+Each configuration section (except for "=defaults=") is identified  by a single word /type/ and a one or more words making up the section /name/.  A generic example is:
 
 #+BEGIN_EXAMPLE
-[TYPE NAME]
-# ...
+[sectiontype the section name]
 #+END_EXAMPLE
+
+** Configuration items
+
+The configuration items are key/value pairs separated by a "=:=" or a "===".  Keys must be single words.  Values are interpreted as strings and are subject to /value formatting/.  More information is on the section on [[Value formatting]].
+
+** Value formatting
+
+Every section's configuration item's value is subject to formatting to resolve any variables which are delimited by "={}=".  The allowed variables are either the (other) keys in the section or any found after parameter resolution (see the  [[Parameters section]]).
+
+
+* Defaults section
+
+The =defaults= section is for providing default, high-level values which may be overridden by arguments to the configuration interpreter.  The allowed keys are:
+
+ - =workflow= :: names the workflow section to use.  If none is named, the first one is used.
+
+* Workflow sections
+
+A configuration file must have at least one section of type =workflow=.  The workflow can be  conceptually treated as a special node which draws information from all other nodes, directly or indirectly, in the workflow graph.  
+
+It is required that =workflow= sections have the following items:
+
+ - =input_nodes= :: a comma separated list of node section names.  When the workflow itself is evaluated the nodes objects set up by these node sections will be directly called.  This should then list at least the "leaf" nodes.  
+ 
+They may have these optional items:
+
+ - =directory= :: a working directory to change to before executing the workflow
+ - =parameters= :: a comma-separated list of parameter sections (see blow)
+
+* Parameters section
+
+The =workflow= section key =parameters= may specify a comma-separated list of the names of sections of types =parameters=.  These sections may also list other =parameters= sections using this same key name.  When the configuration file is interpreted this hierarchy is descended in order to build up a single, flat dictionary of parameters.  See the section on [[Parameter dictionary]] for more information on how this is used.
+
 
 * Node sections
 
-Each potential node in the graph is described in a section of type =node=.  A node section may have a number of items some of which are required and some are optional.  Any additional items are passed to the node object constructor as keyword arguments.
+Each node in the workflow graph is described in a section of type =node=.  Any items in a node section with keys that are not recognized by the interpreter are collected and passed to /node constructor/ as keyword arguments along with those defined through the [[Parameters section]] .
 
 ** Required node items
 
@@ -19,11 +57,27 @@ Each node section must contain:
 
  - =constructor= :: a Python class or function to call to produce the node object written as a full "path" (ie, =btdtwf.tests.nodes.TestNode=)
 
+The constructor is called like:
+
+#+BEGIN_SRC python :eval no
+node_object = constructor(**kwds)
+#+END_SRC
+
+The keyword arguments are made up of any unrecognized configuration items in the node section and any from the parameters sections referenced by the workflow.  The returned =node_object= must satisfy the description in the [[./fnwf.org][Functional Network Workflow]] document.
+
 ** Optional node items
 
 Each node section may contain:
 
  - =input_nodes= :: a comma-separated list of names of nodes which will be connected as input edges
+
+Any nodes on which the current one depends must be listed.  The output of these nodes will be available to the current node through the edge connection and will be connected in the listed order.  These nodes will be connected with a set of edge keywords:
+
+ - =node_name= :: the name of the node section as in the =input_nodes= list
+
+** Remaining node items
+
+Any items in a node section which are not recognized above are bundled into a dictionary and passed as keyword arguments to the node constructor.
 
 ** Node Section Example
 
@@ -45,32 +99,15 @@ input_nodes = NodeA, NodeB
 var3 = "world"
 #+END_EXAMPLE
 
-* Workflow sections
 
-A configuration file must have at least one section of type =workflow=.  This section must list at least some nodes to be included in the workflow.  Any nodes named as =input_nodes= in a listed node's section will be implicitly included.  The workflow section may also specify global options used in running the workflow.
 
-Required workflow items:
 
- - =nodes= :: a comma-separated list of nodes to include in the workflow
- 
-Optional items
 
- - =directory= :: a working directory to change to before executing the workflow
- - =parameters= :: a comma-separated list of parameter sections
 
-More than one =workflow= section is allowed but only one will be used.  The first workflow in the file will be used by default, if not otherwise overridden.
-
-* Defaults section
-
-A special section =defaults= can name which =workflow= to use if there are more than one.
-
-* Parameters section
-
-A workflow section can specify zero or more parameters sections in a comma-separated list.  Each parameters section may specify others in a similar manner.  See the section on [[Parameter dictionary]] for more.
 
 * Configuration representation
 
-The configuration file or files are parsed using Python ConfigParser.  This interpretation results in a =WorkflowConfig= object.  
+After parsing and interpretation the configuration is represented by an instance of a =WorkflowConfig= object.  
 
 ** Workflow configuration objects
 
@@ -88,6 +125,7 @@ The =nodes= data member of the workflow configuration object holds a dictionary 
  - =name= :: the name of the node section
  - =object= :: the callable object to be added to the BTDTWF graph
  - =ctor= :: the name of the Python callable that constructed the =object=
+ - =params= :: an object holding any configuration specified by a =parameters= item (see [[Parameters object]])
  - =kwdargs= :: a dictionary of all other items from the node section and which has been passed to the =ctor=
 
 ** Parameters object

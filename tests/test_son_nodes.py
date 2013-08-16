@@ -24,8 +24,8 @@ def test_son_program():
     import StringIO
     myout = StringIO.StringIO()
     cmdline = '{program} {name1} {name2} {arg_a} {arg_b} {arg1} {arg2} {abcd}'
-    #pc = ProgramCallable(cmdline, log=myout, a="frompc", b=1, program='/bin/echo')
-    pc = callable_program(cmdline, log=myout, a="frompc", b=1, program='/bin/echo')
+    #pc = ProgramCallable(cmdline, logfile=myout, a="frompc", b=1, program='/bin/echo')
+    pc = callable_program(cmdline, logfile=myout, a="frompc", b=1, program='/bin/echo')
     cn = CallableNode(pc, b=2, name1='hello')
     cn.connect(lambda:4, a=10, c=4, name='arg_a', name2='world')
     cn.connect(lambda:5, a=20, d=5, name='arg_b', abcd="{a}-{b}-{c}-{d}")

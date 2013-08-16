@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
+import os
 from collections import namedtuple
 from btdtwf import Graph
-from btdtwf.util import format_flat_dict
+from btdtwf.util import format_flat_dict, cd
 import ConfigParser
 NoSectionError = ConfigParser.NoSectionError
 NoOptionError = ConfigParser.NoOptionError
@@ -25,11 +26,15 @@ def parse(filename):
 
 
 def make_node_object(ctor, **kwds):
+    print 'Making node constructor: "%s"' % ctor
     mn, nc = ctor.rsplit('.',1)
     importstr = 'from %s import %s' % (mn,nc)
     exec (importstr)
     node_ctor = eval(nc)
     obj = node_ctor(**kwds)
+    if not obj:
+        raise ValueError, 'No node object returned from %s(%s)' % \
+            (ctor, ', '.join(['%s=%s'%kv for kv in kwds.items()]))
     return obj
 
 
@@ -50,26 +55,28 @@ def add_node_dict(nodes, cfg, name, **kwds):
             add_node_dict(nodes, cfg, dep_name, **kwds)
 
     ctor = nsecdict.pop('constructor') # required node section item
+    nsecdict.setdefault('node_name', name)
     ctor_kwds = format_flat_dict(nsecdict, **kwds)
-    obj = make_node_object(ctor, **ctor_kwds)
-    nodes[name] = NodeConfig(name=name, object=obj, input_nodes=input_nodes, ctor=ctor, kwdargs=ctor_kwds)
+    all_kwds = dict(kwds, **ctor_kwds)
+    obj = make_node_object(ctor, **all_kwds)
+    nodes[name] = NodeConfig(name=name, object=obj, input_nodes=input_nodes, ctor=ctor, kwdargs=all_kwds)
 
 
-def get_workflow_name(cfg, **params):
+def get_workflow_name(cfg, override=None):
     'Return the requested workflow name, raise NoSectionError if not found in the configuration object'
     workflows = []
     for sec in cfg.sections():
         if sec.startswith('workflow '):
             workflows.append(sec[len('workflow '):])
     workflow = None
-    if workflows:
+    if workflows:               # default is first one in file
         workflow = workflows[0]
-    if cfg.has_section('defaults'):
+    if cfg.has_section('defaults'): # unless a defaults section gives it
         workflow = cfg.get('defaults','workflow')
-    if params.has_key('workflow'):
-        workflow = params.get('workflow')
-    if not workflow in workflows:
-        raise NoSectionError, 'No such workflow "%s" defined' % (workflow, )
+    if override:                # and unless caller doesn't override
+        workflow = override
+    if not workflow in workflows: # regardless, gotta have a matching section
+        raise NoSectionError, 'No such workflow "%s" defined (have: %s)' % (workflow, ', '.join(workflows))
     return workflow
 
 def get_params(cfg, params_name):
@@ -109,24 +116,45 @@ def get_workflow_nodes(cfg, workflow, **kwds):
         add_node_dict(ret, cfg, nname, **kwds)
     return ret
 
+def make_params(**params):
+    class Params(namedtuple('Params', params.keys())):
+        def format(self, string, **extra):
+            d = dict(params, **extra)
+            return string.format(**d)
+    return Params(**params)
+
+def get_workflow_directory(cfg, workflow, **kwds):
+    try:
+        wd = cfg.get('workflow ' + workflow, 'directory')
+    except NoOptionError:
+        wd = '.'
+    return wd.format(workflow=workflow, **kwds)
+
+    
+
 def interpret(cfg, **extra_params):
-    workflow_name = get_workflow_name(cfg, **extra_params)
+    workflow_name = get_workflow_name(cfg, extra_params.get('workflow'))
     params = get_workflow_params(cfg, workflow_name)
     params['workflow'] = workflow_name
     params_ff = format_flat_dict(params, **extra_params)
+    params_nt = make_params(**params_ff)
+    all_params = dict(extra_params, **params_ff)
+    workdir = get_workflow_directory(cfg, **all_params)
 
-    #nodes = get_workflow_nodes(cfg, **params_ff)
     input_node_names = cfg.get('workflow '+workflow_name, 'input_nodes') # required node section item
+    input_node_names = input_node_names.format(**all_params)
     input_node_names = comma_list_split(input_node_names)
+
     nodes = dict()
-
     for nname in input_node_names:
-        add_node_dict(nodes, cfg, nname, **params_ff)
+        add_node_dict(nodes, cfg, nname, **all_params)
 
-    params_nt = namedtuple('params',params.keys())(**params_ff)
-    return WorkflowConfig(name=workflow_name, nodes = nodes, input_nodes=input_node_names,
+    return WorkflowConfig(name=workflow_name, 
+                          nodes = nodes, 
+                          input_nodes=input_node_names,
                           params = params_nt, 
-                          workdir = params_ff.get('workdir','.'))
+                          workdir = workdir)
+
 
 
 def make_graph(wf):
@@ -140,10 +168,37 @@ def make_graph(wf):
     for node in wf.nodes.values():
         for node_name in node.input_nodes:
             other_node = wf.nodes[node_name]
-            graph.add_edge(other_node.object, node.object)
+            graph.add_edge(other_node.object, node.object, node_name = node_name)
 
     return graph
 
         
         
     
+def run(wf):
+    print 'Running workflow %s in %s' % (wf.name, wf.workdir)
+    with cd(wf.workdir, mkdir=True):
+        g = make_graph(wf)
+        for t,h,d in g.edges(data=True):
+            h.connect(t,**d)
+        ret = list()
+        for node_name in wf.input_nodes:
+            node = wf.nodes[node_name]
+            r = node.object()
+            ret.append(r)
+        return ret
+
+    
+import argparse
+def main(args):
+    parser = argparse.ArgumentParser(description='Run Cowbells Workflow')
+    parser.add_argument('-w','--workflow', help='Name of workflow to use')
+    parser.add_argument('config', nargs='+', help='Configuration file')
+    opts = parser.parse_args(args)
+
+    config_files = map(os.path.realpath, opts.config)
+    cfg = parse(config_files)
+    wf = interpret(cfg, workflow= opts.workflow, __config_files__ = ','.join(config_files))
+    result = run(wf)
+    print result
+    return result
