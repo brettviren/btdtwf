@@ -1,0 +1,114 @@
+#+title: Functional Idempotent Predictive Workflow
+
+* COMMENT setup
+#+begin_src emacs-lisp :results silent
+  (defmacro by-backend (&rest body)
+    `(case (if (boundp 'backend) backend nil) ,@body))
+#+end_src
+ 
+
+* Concepts
+
+#+header: :file (by-backend (latex "fipwf.pdf") (t "fipwf.svg"))
+#+header: :export results
+#+BEGIN_SRC dot
+  digraph fipwf {
+          label="FIPWF Context";
+	  result1[shape=circle];
+	  result2[shape=circle];
+	  result[shape=circle];
+	  resultset[shape=octagon];
+	  paramset[shape=octagon];
+	  function[shape=box];
+
+          result1->resultset;
+          result2->resultset;
+          param1->paramset;
+          param2->paramset;
+          resultset->function;
+          paramset->function;
+          function->result;       
+  }
+#+END_SRC
+
+#+RESULTS:
+[[file:fipwf.svg]]
+
+
+The Functional Idempotent Predictive Workflow (FIPWF) has objects
+which embody the following concepts:
+
+- result :: an atomic unit of data considered by the FIPWF system
+- result set :: an ordered collection of results
+- parameter :: a simple, named quantity 
+- parameter set :: an ordered collection of results
+- function :: an operation on a result set and a parameter set which produces a result
+- signature :: a quantity (hash) representing a result, a result set, a parameter or a parameter set
+- context :: a collection of the above objects.
+
+Each concept and its attributes are described in the following subsections.
+
+** Signature
+
+A signature is a simple and unique quantity that represents more complex information.  It is typically a hash (eg, SHA1).  Given the complex information, a signature may be computed at any time.  
+
+** Function
+
+A /function/ operates on a /result set/ and a /parameter set/ to produce a /result/.  A function has the following attributes:
+
+- ident :: a human-oriented identifier which may not be unique to all functions
+- version :: an identifier that with the /ident/ *should* be unique to all functions
+- interface :: a specification of what parameters and results it expects and what result type it produces, by providing these inputs to the /interface/ the output is produced (the function is "called").
+
+** Results
+
+A /result/ embodies the outcome of a function.  A result has the following attributes:
+
+- ident :: a human-oriented identifier which may not be unique to all results
+- type :: a descriptor representing the type of payload data this result holds
+- payload :: the data of the result which is opaque to FIPWF except that it is null until the function is called.
+- function :: the (ident,version) pair of the function that produced it
+- signature :: a signature formed from the collection of the /signature/ of the expected /parameter set/  and the /expected signature/ of the expected /result set/ to be passed to the /function/
+
+
+** Result set
+
+A /result set/ is an ordered collection of results.  It has the following attributes:
+
+- signature :: the signature formed from the collection of the /expected signatures/ of each of its results
+
+
+** Parameter
+
+A /parameter/ is a quantity simple enough to be provided by a human and which is not produced by a /function/.  It has the following attributes:
+
+- ident :: a human-oriented identifier which may not be unique to all parameters
+- type :: a descriptor representing the type of the quantity
+- value :: the quantity, which is opaque to FIPWF
+
+** Parameter set
+
+A /parameter set/ is an ordered collection of /parameters/.  It has the following attributes:
+
+- signature :: a signature computed on the attributes of the parameters in the set.
+
+** Functional, Predictable, Idempotent and Cheating
+
+FIPWF is /functional/ in that the results at all scale depend only on the input and the functions.  Rerunning the same /function/ on the same input always produces the same /result/.  It is /predictable/ in that one can describe what functions to call on what inputs before that input is available.  It is /idempotent/ because it is functional.  Once a function is called it need not be called again on the same inputs.
+
+However, FIPWF can only live up to these descriptors if there is not cheating.  In particular, if a function is modified and does not have associated a novel version then two calls to the "same" function with truly the same inputs can produce differing results.  Likewise, if any parameters or input results are introduced to a function through some mechanism other than its /parameter set/ and /result set/ then subsequent "identical" calls may produce different results.  When the mechanism to assert idempotency is put in place such "cheating" will result in undefined behavior.
+
+** Operations 
+
+The FIPWF needs the following operations
+
+- signature calculations :: for /parameter sets/, /results/ and /result sets/.  
+- calling :: providing inputs to a /function/ and receiving the result.
+- dependency resolution :: if a result is required, its function must be located and called
+
+
+
+
+
+
+
