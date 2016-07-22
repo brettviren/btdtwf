@@ -12,23 +12,23 @@
 #+header: :file (by-backend (latex "fipwf.pdf") (t "fipwf.svg"))
 #+header: :export results
 #+BEGIN_SRC dot
-  digraph fipwf {
-          label="FIPWF Context";
-	  result1[shape=circle];
-	  result2[shape=circle];
-	  result[shape=circle];
-	  resultset[shape=octagon];
-	  paramset[shape=octagon];
-	  function[shape=box];
+    digraph fipwf {
+            label="FIPWF Task";
+            result1[shape=circle];
+            result2[shape=circle];
+            result[shape=circle];
+            resultset[shape=octagon];
+            paramset[shape=octagon];
+            function[shape=diamond];
 
-          result1->resultset;
-          result2->resultset;
-          param1->paramset;
-          param2->paramset;
-          resultset->function;
-          paramset->function;
-          function->result;       
-  }
+            result1->resultset;
+            result2->resultset;
+            param1->paramset;
+            param2->paramset;
+            resultset->function;
+            paramset->function;
+            function->result;       
+    }
 #+END_SRC
 
 #+RESULTS:
@@ -38,12 +38,14 @@
 The Functional Idempotent Predictive Workflow (FIPWF) has objects
 which embody the following concepts:
 
-- result :: an atomic unit of data considered by the FIPWF system
-- result set :: an ordered collection of results
+- payload :: the direct output of a /function/
+- result :: a /payload/ and its metadata
+- result set :: an ordered collection of /results/
 - parameter :: a simple, named quantity 
-- parameter set :: an ordered collection of results
-- function :: an operation on a result set and a parameter set which produces a result
-- signature :: a quantity (hash) representing a result, a result set, a parameter or a parameter set
+- parameter set :: an ordered collection of /parameters/
+- function :: the code run by a task
+- task :: an input result set and parameter set, a function and an output result
+- signature :: a quantity (hash) representing a result, a result set, a parameter or a parameter set, or a payload
 - context :: a collection of the above objects.
 
 Each concept and its attributes are described in the following subsections.
@@ -98,17 +100,35 @@ FIPWF is /functional/ in that the results at all scale depend only on the input 
 
 However, FIPWF can only live up to these descriptors if there is not cheating.  In particular, if a function is modified and does not have associated a novel version then two calls to the "same" function with truly the same inputs can produce differing results.  Likewise, if any parameters or input results are introduced to a function through some mechanism other than its /parameter set/ and /result set/ then subsequent "identical" calls may produce different results.  When the mechanism to assert idempotency is put in place such "cheating" will result in undefined behavior.
 
+** More Objects
+
+These are for bookkeeping object types.
+
+- =sig()= :: an operator taking an object and returning a signature
+- =Fsig= :: a signature of a /function/ =sig(name,version)=
+- =Psig= :: a signature of a /parameter set/ =sig(ps)=
+- =RSspec= :: a specification of a result set =tuple(Rsig1, Rsig2, ..., RsigN)=
+- =Tspec= :: a specification of a task =tuple(Fsig, RSspec, Psig)=
+- =Rsig= :: a signature of result coming from a task =sig(Tspec)=
+
+Note, the values of these objects do not depend on executing a /function/.
+
 ** Operations 
 
 The FIPWF needs the following operations
 
-- signature calculations :: for /parameter sets/, /results/ and /result sets/.  
-- calling :: providing inputs to a /function/ and receiving the result.
-- dependency resolution :: if a result is required, its function must be located and called
+- calculate signatures for /parameter sets/, /results/ and /result sets/.  
+- look up a result based on a human-oriented query
+- determine if result has been calculated
+- assemble task to calculate it
+- look up parametersets and resultsets based on signatures
+- calling a /function/ and receive and store the result.
+- resolve dependencies if a result is required, its function must be located and called
+- associate human-oriented names to results, result sets, parameter sets, functions
 
+** Context
 
-
-
+The FIPWF /context/ is a database (relational or otherwise) that collects the objects and attributes described above and allows for the needed operations to be performed.  Any guarantees of uniqueness (such as the /signatures/) are made up to only the scope of the context.
 
 
 
